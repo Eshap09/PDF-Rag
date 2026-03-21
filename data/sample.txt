@@ -1,0 +1,8 @@
+Transformers process tokens in parallel.
+This makes them significantly faster than RNNs.
+
+Self-attention allows every token to attend to every other token.
+This captures long range dependencies that RNNs struggled with.
+
+RAG grounds the model in external documents at inference time.
+It reduces hallucination by giving the model a source to cite.
