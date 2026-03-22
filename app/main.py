@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -45,11 +48,18 @@ def create_app() -> FastAPI:
     # register v1 routes — all endpoints will be under /api/v1/...
     app.include_router(v1_router, prefix="/api")
 
-    app.mount("/ui", StaticFiles(directory="app/ui"), name="ui")
+    BASE_DIR = Path(__file__).resolve().parent
+    ui_path = BASE_DIR / "ui"
+
+    if not ui_path.exists():
+    # Fallback or error handling
+        raise RuntimeError(f"UI directory not found at {ui_path}")
+
+    app.mount("/ui", StaticFiles(directory=str(ui_path)), name="ui")
 
     @app.get("/", include_in_schema=False)
     async def root():
-        return FileResponse("app/ui/index.html")
+        return FileResponse(str(ui_path / "index.html"))
 
 
     @app.get("/health", tags=["health"])

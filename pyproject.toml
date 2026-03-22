@@ -226,4 +226,4 @@ where = ["."]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-"app.ui" = ["*.html"]
+"app.ui" = ["*", "**/*"]
