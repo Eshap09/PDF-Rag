@@ -26,13 +26,25 @@
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;line-height:1.6}
 .shell{display:grid;grid-template-columns:300px 1fr;grid-template-rows:56px 1fr;height:100vh;overflow:hidden}
-header{grid-column:1/-1;display:flex;align-items:center;padding:0 28px;border-bottom:1px solid var(--border);background:var(--surface);gap:12px}
+header{grid-column:1/-1;display:flex;align-items:center;padding:0 28px;border-bottom:1px solid var(--border);background:var(--surface);gap:12px;position:relative;z-index:40}
 .logo{font-family:'DM Serif Display',serif;font-size:20px;letter-spacing:-0.3px}
 .logo span{color:var(--accent)}
 .header-badge{font-family:'DM Mono',monospace;font-size:10px;background:var(--bg3);color:var(--text3);padding:2px 8px;border-radius:20px;letter-spacing:0.5px}
 .header-status{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3)}
-.status-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s ease-in-out infinite}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--accent);animation:pulse 2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.settings-btn{background:none;border:1px solid var(--border2);border-radius:6px;color:var(--text2);cursor:pointer;padding:5px 10px;font-size:14px;transition:all .15s;margin-left:12px}
+.settings-btn:hover{border-color:var(--accent);color:var(--accent)}
+.settings-panel{display:none;position:absolute;top:56px;right:0;width:340px;background:var(--surface);border-left:1px solid var(--border);border-bottom:1px solid var(--border);border-radius:0 0 0 12px;padding:20px;box-shadow:var(--shadow2);z-index:50}
+.settings-panel.open{display:block;animation:fadeDown .2s ease}
+@keyframes fadeDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.settings-title{font-size:11px;font-weight:500;color:var(--text3);margin-bottom:14px;letter-spacing:.8px;text-transform:uppercase}
+.settings-input{width:100%;padding:9px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;font-size:12px;outline:none;transition:border-color .2s;margin-bottom:10px}
+.settings-input:focus{border-color:var(--accent)}
+.settings-save{width:100%;padding:9px;border-radius:8px;background:var(--accent);color:white;border:none;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s}
+.settings-save:hover{background:var(--accent2)}
+.settings-hint{font-size:11px;color:var(--text3);margin-top:10px;line-height:1.7}
+.settings-hint a{color:var(--accent);text-decoration:none}
 .sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 .sidebar-section{padding:20px;border-bottom:1px solid var(--border)}
 .sidebar-label{font-size:10px;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:var(--text3);margin-bottom:12px}
@@ -107,10 +119,22 @@ textarea::placeholder{color:var(--text3)}
 ::-webkit-scrollbar{width:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.no-key-banner{background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-bottom:1px solid color-mix(in srgb,var(--accent) 20%,var(--border));padding:8px 28px;font-size:12px;color:var(--accent);display:none;align-items:center;gap:10px;grid-column:1/-1}
+.no-key-banner.visible{display:flex}
+.no-key-banner a{color:var(--accent);font-weight:500;cursor:pointer;text-decoration:underline}
 </style>
 </head>
 <body>
 <div class="shell">
+
+  <!-- NO KEY BANNER -->
+  <div class="no-key-banner" id="noKeyBanner">
+    ⚠ No Groq API key set.
+    <a onclick="openSettings()">Add your key in settings</a>
+    to enable question answering.
+    Get a free key at
+    <a href="https://console.groq.com" target="_blank">console.groq.com</a>
+  </div>
 
   <header>
     <div class="logo">RAG<span>.</span></div>
@@ -118,6 +142,26 @@ textarea::placeholder{color:var(--text3)}
     <div class="header-status">
       <div class="status-dot" id="statusDot"></div>
       <span id="statusText">connecting...</span>
+    </div>
+    <button class="settings-btn" onclick="toggleSettings()" title="Settings">⚙</button>
+
+    <!-- SETTINGS PANEL -->
+    <div class="settings-panel" id="settingsPanel">
+      <div class="settings-title">Settings</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px" id="keyStatus"></div>
+      <input
+        class="settings-input"
+        type="password"
+        id="apiKeyInput"
+        placeholder="gsk_..."
+        autocomplete="off"
+      >
+      <button class="settings-save" onclick="saveApiKey()">Save API Key</button>
+      <div class="settings-hint">
+        Get your free key at
+        <a href="https://console.groq.com" target="_blank">console.groq.com</a><br>
+        Saved securely to ~/.rag/.env on the server.
+      </div>
     </div>
   </header>
 
@@ -177,22 +221,100 @@ const API = 'http://localhost:8000/api/v1';
 let documents = [];
 let isLoading = false;
 
+// ── INIT ──────────────────────────────────────────────────────────────────────
+
 async function init() {
+  // health check
   try {
     const r = await fetch('http://localhost:8000/health');
     if (r.ok) {
       document.getElementById('statusDot').style.background = 'var(--green)';
-      document.getElementById('statusText').textContent = 'API connected';
+      document.getElementById('statusText').textContent = 'connected';
     }
   } catch {
     document.getElementById('statusDot').style.background = 'var(--accent)';
     document.getElementById('statusText').textContent = 'API unreachable';
   }
+
+  // check API key
+  try {
+    const r    = await fetch(API + '/config');
+    const data = await r.json();
+    if (!data.key_set) {
+      document.getElementById('noKeyBanner').classList.add('visible');
+    }
+  } catch {}
+
+  // load saved doc list
   const saved = sessionStorage.getItem('rag_docs');
   if (saved) { documents = JSON.parse(saved); renderDocs(); }
 }
 
-// UPLOAD
+// ── SETTINGS ──────────────────────────────────────────────────────────────────
+
+function toggleSettings() {
+  const panel = document.getElementById('settingsPanel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) checkKeyStatus();
+}
+
+function openSettings() {
+  document.getElementById('settingsPanel').classList.add('open');
+  checkKeyStatus();
+}
+
+async function checkKeyStatus() {
+  try {
+    const r    = await fetch(API + '/config');
+    const data = await r.json();
+    const el   = document.getElementById('keyStatus');
+    if (data.key_set) {
+      el.textContent = '✓ API key is configured';
+      el.style.color = 'var(--green)';
+      document.getElementById('apiKeyInput').placeholder = 'Paste to update key';
+    } else {
+      el.textContent = 'No API key set';
+      el.style.color = 'var(--accent)';
+      document.getElementById('apiKeyInput').placeholder = 'gsk_...';
+    }
+  } catch {}
+}
+
+async function saveApiKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key) { toast('Paste your API key first', 'error'); return; }
+
+  const r    = await fetch(API + '/config', {
+    method:  'POST',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify({groq_api_key: key}),
+  });
+  const data = await r.json();
+
+  if (r.ok && data.key_set) {
+    toast('API key saved', 'success');
+    document.getElementById('apiKeyInput').value = '';
+    document.getElementById('settingsPanel').classList.remove('open');
+    document.getElementById('noKeyBanner').classList.remove('visible');
+    document.getElementById('statusDot').style.background = 'var(--green)';
+    document.getElementById('statusText').textContent = 'connected';
+  } else {
+    toast('Failed to save key', 'error');
+  }
+}
+
+// close settings when clicking outside
+document.addEventListener('click', e => {
+  const panel = document.getElementById('settingsPanel');
+  if (panel.classList.contains('open') &&
+      !panel.contains(e.target) &&
+      !e.target.closest('.settings-btn')) {
+    panel.classList.remove('open');
+  }
+});
+
+// ── UPLOAD ────────────────────────────────────────────────────────────────────
+
 const uploadZone = document.getElementById('uploadZone');
 const fileInput  = document.getElementById('fileInput');
 
@@ -204,22 +326,22 @@ fileInput.addEventListener('change', () => { uploadFiles(Array.from(fileInput.fi
 async function uploadFiles(files) { for (const f of files) await uploadFile(f); }
 
 async function uploadFile(file) {
-  const progress = document.getElementById('uploadProgress');
+  const progress     = document.getElementById('uploadProgress');
   const progressText = document.getElementById('uploadProgressText');
   progress.style.display = 'block';
   progressText.textContent = 'Indexing ' + file.name + '...';
   const form = new FormData();
   form.append('file', file);
   try {
-    const r = await fetch(API + '/ingest', { method: 'POST', body: form });
+    const r    = await fetch(API + '/ingest', {method:'POST', body:form});
     const data = await r.json();
     if (!r.ok) throw new Error(data.detail || 'Upload failed');
     const existing = documents.findIndex(d => d.name === file.name);
-    const doc = { name: file.name, chunks: data.chunks_added, size: formatSize(file.size), type: file.name.endsWith('.pdf') ? '📄' : '📝' };
+    const doc = {name:file.name, chunks:data.chunks_added, size:formatSize(file.size), type:file.name.endsWith('.pdf')?'📄':'📝'};
     if (existing >= 0) documents[existing] = doc; else documents.push(doc);
     sessionStorage.setItem('rag_docs', JSON.stringify(documents));
     renderDocs();
-    toast(file.name + ' indexed — ' + data.chunks_added + ' chunks' + (data.replaced ? ' (updated)' : ''), 'success');
+    toast(file.name + ' indexed — ' + data.chunks_added + ' chunks' + (data.replaced?' (updated)':''), 'success');
   } catch(e) { toast(e.message, 'error'); }
   finally { progress.style.display = 'none'; }
 }
@@ -227,7 +349,7 @@ async function uploadFile(file) {
 function renderDocs() {
   const list = document.getElementById('docsList');
   if (!documents.length) { list.innerHTML = '<div style="font-size:12px;color:var(--text3);text-align:center;padding:16px">No documents yet</div>'; return; }
-  list.innerHTML = documents.map((d, i) => `
+  list.innerHTML = documents.map((d,i) => `
     <div class="doc-item">
       <div class="doc-icon">${d.type}</div>
       <div class="doc-info">
@@ -238,25 +360,26 @@ function renderDocs() {
     </div>`).join('');
 }
 
-async function deleteDoc(i) { documents.splice(i, 1); sessionStorage.setItem('rag_docs', JSON.stringify(documents)); renderDocs(); toast('Removed from list', 'info'); }
+async function deleteDoc(i) { documents.splice(i,1); sessionStorage.setItem('rag_docs',JSON.stringify(documents)); renderDocs(); toast('Removed from list','info'); }
 
 async function clearCollection() {
   if (!confirm('Clear all indexed documents?')) return;
   try {
-    const r = await fetch(API + '/collection', { method: 'DELETE' });
+    const r = await fetch(API+'/collection', {method:'DELETE'});
     if (!r.ok) throw new Error('Failed to clear');
     documents = []; sessionStorage.removeItem('rag_docs'); renderDocs();
-    toast('All documents cleared', 'success');
-  } catch(e) { toast(e.message, 'error'); }
+    toast('All documents cleared','success');
+  } catch(e) { toast(e.message,'error'); }
 }
 
-// QUERY
-function fillQuestion(q) { const i = document.getElementById('questionInput'); i.value = q; i.focus(); autoResize(i); }
-function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQuestion(); } }
+// ── QUERY ─────────────────────────────────────────────────────────────────────
+
+function fillQuestion(q) { const i=document.getElementById('questionInput'); i.value=q; i.focus(); autoResize(i); }
+function handleKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendQuestion();} }
 
 async function sendQuestion() {
   if (isLoading) return;
-  const input = document.getElementById('questionInput');
+  const input    = document.getElementById('questionInput');
   const question = input.value.trim();
   if (!question) return;
   input.value = ''; autoResize(input);
@@ -267,18 +390,18 @@ async function sendQuestion() {
   const tid = 'thinking-' + Date.now();
   appendThinking(tid);
   try {
-    const r = await fetch(API + '/query', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({question}) });
+    const r    = await fetch(API+'/query', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question})});
     const data = await r.json();
     document.getElementById(tid)?.remove();
     if (!r.ok) throw new Error(data.detail || 'Query failed');
     appendAnswer(data.answer, data.sources || []);
   } catch(e) { document.getElementById(tid)?.remove(); appendMessage('error', e.message); }
-  finally { isLoading = false; document.getElementById('sendBtn').disabled = false; }
+  finally { isLoading=false; document.getElementById('sendBtn').disabled=false; }
 }
 
 function appendMessage(role, text) {
   const chat = document.getElementById('chat');
-  const div = document.createElement('div');
+  const div  = document.createElement('div');
   div.className = 'message';
   div.innerHTML = `<div class="msg-role ${role==='user'?'user-role':''}">${role==='user'?'You':role==='error'?'Error':'Assistant'}</div><div class="msg-bubble ${role==='user'?'user-bubble':'assistant-bubble'}">${esc(text)}</div>`;
   chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
@@ -286,7 +409,7 @@ function appendMessage(role, text) {
 
 function appendThinking(id) {
   const chat = document.getElementById('chat');
-  const div = document.createElement('div');
+  const div  = document.createElement('div');
   div.id = id; div.className = 'message';
   div.innerHTML = `<div class="msg-role">Assistant</div><div class="thinking"><div class="thinking-dots"><div class="thinking-dot"></div><div class="thinking-dot"></div><div class="thinking-dot"></div></div>Thinking</div>`;
   chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
@@ -294,7 +417,7 @@ function appendThinking(id) {
 
 function appendAnswer(answer, sources) {
   const chat = document.getElementById('chat');
-  const div = document.createElement('div');
+  const div  = document.createElement('div');
   div.className = 'message';
   const chips = sources.map(s => {
     const page = s.page_number ? `<span class="page-badge">p.${s.page_number}</span>` : '';
@@ -306,8 +429,10 @@ function appendAnswer(answer, sources) {
   chat.appendChild(div); chat.scrollTop = chat.scrollHeight;
 }
 
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>'); }
-function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }
+function autoResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,160)+'px'; }
 function formatSize(b) { if(b<1024) return b+'B'; if(b<1048576) return (b/1024).toFixed(1)+'KB'; return (b/1048576).toFixed(1)+'MB'; }
 
 let toastTimer;
