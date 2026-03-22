@@ -1,3 +1,6 @@
+#Install 
+use -brew install Eshap09/rag
+
 # RAG API
 
 A production-grade Retrieval Augmented Generation (RAG) API built with FastAPI, LangChain, ChromaDB, and Groq. Upload documents, ask questions, get answers grounded in your data — not hallucinations.
