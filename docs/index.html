@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>rag — chat with your documents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+
+:root {
+  --ink: #0f0e0c;
+  --ink2: #4a4740;
+  --ink3: #9a9690;
+  --paper: #f7f4ef;
+  --paper2: #ede9e2;
+  --paper3: #e2ddd5;
+  --red: #c13a1e;
+  --red2: #e04828;
+  --border: rgba(15,14,12,0.1);
+  --border2: rgba(15,14,12,0.18);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Instrument Sans', sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── NOISE TEXTURE ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 100;
+  opacity: .4;
+}
+
+/* ── NAV ── */
+nav {
+  display: flex;
+  align-items: center;
+  padding: 20px 48px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: rgba(247,244,239,.92);
+  backdrop-filter: blur(12px);
+  z-index: 50;
+}
+
+.nav-logo {
+  font-family: 'Instrument Serif', serif;
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+}
+
+.nav-logo span { color: var(--red); }
+
+.nav-links {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.nav-links a {
+  font-size: 13px;
+  color: var(--ink2);
+  text-decoration: none;
+  transition: color .15s;
+}
+
+.nav-links a:hover { color: var(--ink); }
+
+.nav-gh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ink2) !important;
+  transition: all .15s !important;
+}
+
+.nav-gh:hover {
+  border-color: var(--ink) !important;
+  color: var(--ink) !important;
+}
+
+/* ── HERO ── */
+.hero {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 100px 48px 80px;
+  position: relative;
+}
+
+.hero-eyebrow {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--red);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-eyebrow::after {
+  content: '';
+  display: block;
+  height: 1px;
+  width: 40px;
+  background: var(--red);
+  opacity: .4;
+}
+
+.hero-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: clamp(48px, 7vw, 80px);
+  line-height: 1.05;
+  letter-spacing: -2px;
+  color: var(--ink);
+  margin-bottom: 24px;
+}
+
+.hero-title em {
+  font-style: italic;
+  color: var(--red);
+}
+
+.hero-sub {
+  font-size: 17px;
+  color: var(--ink2);
+  line-height: 1.7;
+  max-width: 520px;
+  margin-bottom: 48px;
+}
+
+/* ── INSTALL BLOCK ── */
+.install-block {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.install-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--ink);
+  color: #f0ece6;
+  padding: 14px 20px;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  min-width: 420px;
+  position: relative;
+  cursor: pointer;
+  transition: all .15s;
+  user-select: none;
+}
+
+.install-step:hover { background: #1a1916; }
+
+.install-step .prompt {
+  color: var(--red);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.install-step .cmd { flex: 1; }
+
+.install-step .copy-btn {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 10px;
+  color: rgba(240,236,230,.4);
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  transition: color .15s;
+  flex-shrink: 0;
+}
+
+.install-step:hover .copy-btn { color: rgba(240,236,230,.7); }
+.install-step.copied .copy-btn { color: #4aaa70; }
+
+.install-hint {
+  font-size: 11px;
+  color: var(--ink3);
+  padding-left: 4px;
+}
+
+/* ── DIVIDER ── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0 48px;
+}
+
+/* ── HOW IT WORKS ── */
+.section {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 80px 48px;
+}
+
+.section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--ink3);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 48px;
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.step-card {
+  background: var(--paper);
+  padding: 32px 28px;
+  transition: background .2s;
+}
+
+.step-card:hover { background: var(--paper2); }
+
+.step-num {
+  font-family: 'Instrument Serif', serif;
+  font-size: 40px;
+  color: var(--paper3);
+  line-height: 1;
+  margin-bottom: 16px;
+}
+
+.step-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 20px;
+  color: var(--ink);
+  margin-bottom: 10px;
+  letter-spacing: -0.3px;
+}
+
+.step-desc {
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.7;
+}
+
+/* ── FEATURES ── */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+}
+
+.feature-card {
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--paper);
+  transition: all .2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.feature-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--red);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .3s ease;
+}
+
+.feature-card:hover::before { transform: scaleX(1); }
+.feature-card:hover { border-color: var(--border2); background: var(--paper2); }
+
+.feature-icon {
+  font-size: 22px;
+  margin-bottom: 14px;
+  display: block;
+}
+
+.feature-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 18px;
+  color: var(--ink);
+  margin-bottom: 8px;
+  letter-spacing: -0.2px;
+}
+
+.feature-desc {
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.7;
+}
+
+/* ── TECH STACK ── */
+.stack-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 32px;
+}
+
+.stack-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--ink2);
+  background: var(--paper);
+  transition: all .15s;
+}
+
+.stack-tag:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* ── TERMINAL DEMO ── */
+.terminal {
+  background: #0f0e0c;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.06);
+  margin-top: 48px;
+}
+
+.terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: #1a1916;
+  border-bottom: 1px solid rgba(255,255,255,.05);
+}
+
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #ff5f57; }
+.dot-y { background: #ffbd2e; }
+.dot-g { background: #28c840; }
+
+.terminal-title {
+  margin-left: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: rgba(240,236,230,.25);
+}
+
+.terminal-body {
+  padding: 24px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 2;
+  color: #c8c4be;
+}
+
+.t-prompt { color: #c13a1e; }
+.t-cmd    { color: #f0ece6; }
+.t-ok     { color: #4aaa70; }
+.t-dim    { color: rgba(200,196,190,.35); }
+.t-url    { color: #7eb8f0; text-decoration: underline; }
+.t-warn   { color: #e8a030; }
+
+/* ── CTA ── */
+.cta-section {
+  background: var(--ink);
+  padding: 80px 48px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-section::before {
+  content: '"';
+  font-family: 'Instrument Serif', serif;
+  font-size: 400px;
+  color: rgba(255,255,255,.02);
+  position: absolute;
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.cta-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 40px;
+  color: #f0ece6;
+  letter-spacing: -1px;
+  margin-bottom: 16px;
+}
+
+.cta-sub {
+  font-size: 15px;
+  color: rgba(240,236,230,.5);
+  margin-bottom: 40px;
+}
+
+.cta-install {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.cta-cmd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  color: #f0ece6;
+  padding: 14px 24px;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .15s;
+  user-select: none;
+  min-width: 380px;
+  justify-content: space-between;
+}
+
+.cta-cmd:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.2); }
+.cta-cmd .prompt { color: var(--red); }
+.cta-cmd .copy-label { font-size: 10px; color: rgba(240,236,230,.35); text-transform: uppercase; letter-spacing:.5px; }
+
+/* ── FOOTER ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 24px 48px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.footer-logo {
+  font-family: 'Instrument Serif', serif;
+  font-size: 16px;
+  color: var(--ink2);
+}
+
+.footer-logo span { color: var(--red); }
+
+.footer-links {
+  margin-left: auto;
+  display: flex;
+  gap: 24px;
+}
+
+.footer-links a {
+  font-size: 12px;
+  color: var(--ink3);
+  text-decoration: none;
+  transition: color .15s;
+}
+
+.footer-links a:hover { color: var(--ink); }
+
+/* ── ANIMATIONS ── */
+.fade-up {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeUp .6s ease forwards;
+}
+
+@keyframes fadeUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-up:nth-child(1) { animation-delay: 0s; }
+.fade-up:nth-child(2) { animation-delay: .1s; }
+.fade-up:nth-child(3) { animation-delay: .2s; }
+.fade-up:nth-child(4) { animation-delay: .3s; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  nav { padding: 16px 24px; }
+  .nav-links { gap: 16px; }
+  .hero { padding: 64px 24px 48px; }
+  .install-step { min-width: auto; width: 100%; }
+  .section { padding: 48px 24px; }
+  .steps-grid { grid-template-columns: 1fr; }
+  .features-grid { grid-template-columns: 1fr; }
+  .cta-section { padding: 48px 24px; }
+  .cta-cmd { min-width: auto; width: 100%; }
+  footer { padding: 20px 24px; flex-direction: column; align-items: flex-start; gap: 12px; }
+  .footer-links { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">rag<span>.</span></div>
+  <div class="nav-links">
+    <a href="#how">How it works</a>
+    <a href="#features">Features</a>
+    <a href="https://github.com/Eshap09/PDF-Rag" target="_blank" class="nav-gh">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-eyebrow fade-up">Open source · macOS · Free</div>
+  <h1 class="hero-title fade-up">
+    Chat with your<br><em>documents.</em>
+  </h1>
+  <p class="hero-sub fade-up">
+    rag is a local AI tool that lets you ask questions about any PDF, text, or markdown file.
+    Runs entirely on your machine — your data never leaves.
+  </p>
+
+  <div class="install-block fade-up">
+    <div class="install-step" onclick="copyCmd(this, 'brew tap Eshap09/rag')">
+      <span class="prompt">$</span>
+      <span class="cmd">brew tap Eshap09/rag</span>
+      <span class="copy-btn">copy</span>
+    </div>
+    <div class="install-step" onclick="copyCmd(this, 'brew install rag')">
+      <span class="prompt">$</span>
+      <span class="cmd">brew install rag</span>
+      <span class="copy-btn">copy</span>
+    </div>
+    <div class="install-step" onclick="copyCmd(this, 'rag start')">
+      <span class="prompt">$</span>
+      <span class="cmd">rag start</span>
+      <span class="copy-btn">copy</span>
+    </div>
+    <div class="install-hint">Requires macOS · Homebrew · Python 3.12</div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- TERMINAL DEMO -->
+<section class="section">
+  <div class="section-label">See it in action</div>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="dot dot-r"></div>
+      <div class="dot dot-y"></div>
+      <div class="dot dot-g"></div>
+      <div class="terminal-title">zsh — rag</div>
+    </div>
+    <div class="terminal-body" id="terminalBody">
+      <div><span class="t-prompt">~</span> <span class="t-cmd">rag start</span></div>
+      <div class="t-dim">&nbsp;</div>
+      <div id="tLine1" style="opacity:0">  <span class="t-ok">✓</span>  <span style="color:#f0ece6;font-weight:500">chromadb ready   </span> <span class="t-dim">~/.rag/chromadb</span></div>
+      <div id="tLine2" style="opacity:0">  <span class="t-ok">✓</span>  <span style="color:#f0ece6;font-weight:500">model ready      </span> <span class="t-dim">all-MiniLM-L6-v2</span></div>
+      <div id="tLine3" style="opacity:0">  <span class="t-ok">✓</span>  <span style="color:#f0ece6;font-weight:500">server starting  </span> <span class="t-url">http://localhost:8000</span></div>
+      <div id="tLine4" style="opacity:0">  <span class="t-dim">→  opening browser...</span></div>
+      <div class="t-dim">&nbsp;</div>
+      <div id="tLine5" style="opacity:0"><span class="t-prompt">~</span> <span class="t-dim"># upload a PDF and ask questions in the browser</span></div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+  <div class="section-label">How it works</div>
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-num">01</div>
+      <div class="step-title">Install</div>
+      <div class="step-desc">One brew command. rag installs Python dependencies, the embedding model, and everything it needs automatically.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">02</div>
+      <div class="step-title">Upload</div>
+      <div class="step-desc">Drop any PDF, text, or markdown file into the browser UI. rag chunks it, embeds it locally, and indexes it in seconds.</div>
+    </div>
+    <div class="step-card">
+      <div class="step-num">03</div>
+      <div class="step-title">Ask</div>
+      <div class="step-desc">Type any question. rag retrieves the most relevant passages, sends them to Groq, and returns a grounded answer with source citations.</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="section-label">Features</div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <span class="feature-icon">🔒</span>
+      <div class="feature-title">Fully local</div>
+      <div class="feature-desc">Embeddings run on your machine using sentence-transformers. Your documents never leave your computer. Only the final LLM call goes to Groq.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">📄</span>
+      <div class="feature-title">PDF + OCR support</div>
+      <div class="feature-desc">Works on text-based PDFs and image-based PDFs alike. Automatically falls back to OCR via tesseract when the text layer is sparse.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">⚡</span>
+      <div class="feature-title">Reranking</div>
+      <div class="feature-desc">Retrieves 20 candidate chunks then uses a cross-encoder to rerank them by relevance. Much more accurate than vector similarity alone.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">📍</span>
+      <div class="feature-title">Source citations</div>
+      <div class="feature-desc">Every answer shows which file and page it came from. Hover any source chip to preview the exact passage the model used.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🔄</span>
+      <div class="feature-title">Smart re-indexing</div>
+      <div class="feature-desc">Upload the same file again and rag automatically replaces the old chunks — no duplicates, no manual clearing required.</div>
+    </div>
+    <div class="feature-card">
+      <span class="feature-icon">🌓</span>
+      <div class="feature-title">Auto dark mode</div>
+      <div class="feature-desc">The UI automatically matches your system theme. Light during the day, dark at night — no toggle needed.</div>
+    </div>
+  </div>
+
+  <div class="stack-row">
+    <div class="stack-tag">FastAPI</div>
+    <div class="stack-tag">LangChain</div>
+    <div class="stack-tag">ChromaDB</div>
+    <div class="stack-tag">sentence-transformers</div>
+    <div class="stack-tag">Groq</div>
+    <div class="stack-tag">cross-encoder</div>
+    <div class="stack-tag">pytesseract</div>
+    <div class="stack-tag">pypdf</div>
+    <div class="stack-tag">Homebrew</div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2 class="cta-title">Ready to try it?</h2>
+  <p class="cta-sub">Three commands. No account. No cloud. No cost.</p>
+  <div class="cta-install">
+    <div class="cta-cmd" onclick="copyCmd(this, 'brew tap Eshap09/rag')">
+      <span><span class="prompt">$ </span>brew tap Eshap09/rag</span>
+      <span class="copy-label">copy</span>
+    </div>
+    <div class="cta-cmd" onclick="copyCmd(this, 'brew install rag')">
+      <span><span class="prompt">$ </span>brew install rag</span>
+      <span class="copy-label">copy</span>
+    </div>
+    <div class="cta-cmd" onclick="copyCmd(this, 'rag start')">
+      <span><span class="prompt">$ </span>rag start</span>
+      <span class="copy-label">copy</span>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">rag<span>.</span></div>
+  <div style="font-size:12px;color:var(--ink3)">Built by Eshap Gupta</div>
+  <div class="footer-links">
+    <a href="https://github.com/Eshap09/PDF-Rag" target="_blank">GitHub</a>
+    <a href="https://github.com/Eshap09/PDF-Rag/issues" target="_blank">Issues</a>
+    <a href="https://console.groq.com" target="_blank">Get Groq key</a>
+  </div>
+</footer>
+
+<script>
+// copy to clipboard
+function copyCmd(el, text) {
+  navigator.clipboard.writeText(text).then(() => {
+    el.classList.add('copied');
+    const btn = el.querySelector('.copy-btn') || el.querySelector('.copy-label');
+    const orig = btn.textContent;
+    btn.textContent = 'copied!';
+    setTimeout(() => {
+      btn.textContent = orig;
+      el.classList.remove('copied');
+    }, 1500);
+  });
+}
+
+// terminal animation
+function animateTerminal() {
+  const lines = ['tLine1','tLine2','tLine3','tLine4','tLine5'];
+  lines.forEach((id, i) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.transition = 'opacity .3s ease';
+        el.style.opacity = '1';
+      }
+    }, 400 + i * 500);
+  });
+}
+
+// trigger terminal animation when in view
+const terminal = document.querySelector('.terminal');
+if (terminal) {
+  const obs = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      animateTerminal();
+      obs.disconnect();
+    }
+  }, { threshold: 0.3 });
+  obs.observe(terminal);
+}
+</script>
+</body>
+</html>
